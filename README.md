@@ -1,98 +1,272 @@
-# Desafio Backend - LEDS
-*Bem-vindo!* 👋
+# Sistema de Match de Concursos e candidatos
+O Projeto foi desenvolvido para facilitar o encontro entre candidatos e editais de concursos públicos. Através de um algoritmo de cruzamento de competências, o sistema identifica quais editais são compatíveis com as profissões de um candidato.
 
-Neste desafio, você terá a oportunidade de demonstrar que possui as habilidades necessárias para atuar no time de backend do laboratório.
+##  Tecnologias Utilizadas
+* Linguagem: C#
 
-# Contextualização
+* Frameworks: ASP.NET Core MVC, Blazor, BootStrap
 
-O desafio é desenvolver um programa que permita realizar as seguintes buscas: 
-1. Listar os **órgãos, códigos e editais dos concursos públicos** que se encaixam no perfil do candidato, tomando como base o seu **CPF**; 
-2. Listar o **nome, data de nascimento e o CPF** dos candidatos que se encaixam no perfil do concurso tomando com base o **Código do Concurso** do concurso público;
+* ORM: Entity Framework Core
 
-O arquivo **candidatos.txt** contém as informações dos candidatos:
+* Banco de Dados: SQLite
 
-| Nome  | Data de Nascimento  | CPF |  Profissões|
-|---|---|---|---|
-| Lindsey Craft  |  19/05/1976  |  182.845.084-34  |  [carpinteiro]  | 
-| Jackie Dawson  |  14/08/1970  |  311.667.973-47  |  [marceneiro, assistente administrativo]  |
-| Cory Mendoza |   11/02/1957 |  565.512.353-92  |  [carpinteiro, marceneiro] |
+* Padrões: Service Layer e Injeção de Dependência
 
-O arquivo **concursos.txt** contém as informações dos concursos públicos:
+##  Arquitetura da Solução
 
-| Órgão  | Edital  | Código do Concurso | Lista de vagas|
-|---|---|---|---|
-| SEDU  | 9/2016  |  61828450843  |  [analista de sistemas, marceneiro]  | 
-| SEJUS | 15/2017  |  61828450843  |  [carpinteiro,professor de matemática,assistente administrativo] |
-| SEJUS | 17/2017 |  95655123539  |  [professor de matemática] |
 
-🤩 **As tecnologias a serem utilizadas na implementação da solução ficam a seu critério!**
+### Camada de Serviços (Service Layer)
 
-# Como entregar?
-1. Faça um **fork** do repositório. Nesse fork esperamos encontrar uma documentação completa da solução e a listagem dos diferenciais implementados.
-2. Abra um **pull request (PR)** do seu fork para o nome repositório com o seu nome como título. Assim conseguimos te localizar melhor e ver que você já finalizou o desafio!
+Toda a lógica de negócio pesada foi isolada nos serviços CandidatoMatchService e ConcursoMatchService. Isso mantém os controladores enxutos e foca o processamento onde ele realmente importa.
 
-🚨 **Atenção**: você deve enviar apenas o código fonte. Não serão aceitos códigos compilados.
+### Conversão de valores
 
-## Avaliação
+Como o SQLite não suporta listas nativamente, implementamos um conversor de valores no AppDbContext:
 
-O programa será avaliado levando em conta os seguintes critérios:
+* Gravação: Converte ```List<string>``` em uma única string separada por vírgulas.
 
-| Critério  | Valor | 
-|---|---|
-| Legibilidade do Código |  10  |
-| Documentação do código |  10  |
-| Documentação da solução |  10  |
-| Tratamento de Erros | 10 | 
-| Total | 40 |
+* Leitura: Reconstrói a lista original para uso no C#.
 
-A sua pontuação será a soma dos valores obtidos nos critérios acima.
+### Algoritmo de Match
 
-## Diferenciais 
-Você pode **aumentar sua pontuação** implementando os seguintes diferenciais:
+O sistema resolve o problema de dados não normalizados da seguinte forma:
 
-| Item  | Pontos Ganhos | 
-|---|---|
-| Criar um [serviço](https://martinfowler.com/articles/microservices.html) com o problema |  30  |
-| Utilizar banco de dados |  30  |
-| Implementar Clean Code |  20  |
-| Implementar o padrão de programação da tecnologia escolhida |  20  |
-| Qualidade de [Código com SonarQube](https://about.sonarcloud.io/) |  15  |
-| Implementar testes unitários |  15  |
-| Implementar testes comportamentais |  15  |
-| Implementar integração com [Github Action](https://github.com/features/actions)  |  10  |
-| Implementar integração com Github Action + SonarQube |  10  |
-| Implementar usando Docker | 5 |
-| Total| 170 |
+Normalização: Todas as comparações utilizam ```.Trim()``` para remover espaços em branco e ```StringComparison.OrdinalIgnoreCase``` para ignorar diferenças entre letras maiúsculas e minúsculas.
 
-A pontuação final será calculada somando os critérios obrigatórios e os diferenciais implementados corretamente.
+Interseção Dinâmica: O algoritmo verifica se qualquer profissão do candidato existe na lista de vagas do concurso, permitindo resultados precisos mesmo com múltiplos cargos no edital.
 
-# Penalizações
+### Tratamento de Erros e Estabilidade
 
-Você será desclassificado se:
+Para garantir a nota máxima em estabilidade e segurança:
 
-1. Enviar uma solução que não funcione.
-2. Não cumprir os critérios da seção **Avaliação**.
-3. For identificado plágio.
-   
-***Que a força esteja com você. Boa sorte!***
+* Validação Defensiva: Verificação sistemática de parâmetros nulos ou vazios (ex: CPF e Código) antes de consultas ao banco.
 
-<div align="left">
+* Prevenção de Exceptions: Métodos de busca retornam new List<T>() em vez de null, garantindo que a interface do usuário nunca falhe por erro de referência nula (NullReferenceException).
+
+## Endpoints da API
+
+### Candidato
+
+* Buscar por CPF
+
+   rota usada na view da solução para buscar concursos compátiveis com o portador do CPF digitado. por meio da rota: ```/Candidatos/BuscarPorCpf```
+
+Exemplo:
+
+```cshtml
+<div class="container">
+    <h2>Filtrar Concursos por CPF</h2>
+    
+    <form method="get" class="mb-4" action="/Candidatos/BuscarPorCpf">
+        <div class="input-group">
+            <input type="number" name="cpf" class="form-control" placeholder="Digite o CPF (ex: 182.845.084-34)" />
+            <button type="submit" class="btn btn-primary">Buscar</button>
+        </div>
+    </form>
+
+        <table class="table table-striped">
+            <thead>
+            <tr>
+                <th>Órgão</th>
+                <th>Edital</th>
+                <th>Código</th>
+                <th>Vagas</th>
+            </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>IFES - SERRA</td>
+                    <td>01/2026</td>
+                    <td>61828450843</td>
+                    <td>marceneiro, programador</td>
+                </tr>
+            </tbody>
+        </table>
+    
 </div>
+```
 
-###
+* Listar Candidatos
 
-<br clear="both">
+  Retorna um JSON de candidatos disponíveis no sistema, para consulta ou manipulação. por meio da rota: ```/Candidatos/listar```
 
-<div align="center">
-  <a href="https://www.linkedin.com/school/ledsifes" target="_blank">
-    <img src="https://img.shields.io/static/v1?message=LinkedIn&logo=linkedin&label=&color=0077B5&logoColor=white&labelColor=&style=for-the-badge" height="40" alt="linkedin logo"  />
-  </a>
-  <a href="https://www.instagram.com/ledsifes/" target="_blank">
-    <img src="https://img.shields.io/static/v1?message=Instagram&logo=instagram&label=&color=E4405F&logoColor=white&labelColor=&style=for-the-badge" height="40" alt="instagram logo"  />
-  </a>
-  <a href="https://www.youtube.com/@ledsifes/?sub_confirmation=1" target="_blank">
-    <img src="https://img.shields.io/static/v1?message=Youtube&logo=youtube&label=&color=FF0000&logoColor=white&labelColor=&style=for-the-badge" height="40" alt="youtube logo"  />
-  </a>
+Exemplo:
+
+```json
+[
+  {
+    "id": 1,
+    "nome": "Gustavo Teste",
+    "dataNascimento": "01/01/2000",
+    "cpf": "123",
+    "profissoes": [
+      "marceneiro"
+    ]
+  },
+  {
+    "id": 2,
+    "nome": "ridenil",
+    "dataNascimento": "21/05/2006",
+    "cpf": "234",
+    "profissoes": [
+      "planejador",
+      "analista de dados"
+    ]
+  },
+  {
+    "id": 3,
+    "nome": "sixseven",
+    "dataNascimento": "67/67/6767",
+    "cpf": "67",
+    "profissoes": [
+      "six",
+      "seven"
+    ]
+  }
+]
+```
+
+* Cadastrar Candidatos
+
+  esta rota adiciona candidatos ao sistema para executar as consultas e manipulações do mesmo. por meio da rota: ```/Candidatos/adicionar```
+
+<img width="1433" height="811" alt="image" src="https://github.com/user-attachments/assets/a319d8e3-6633-4052-b15c-16d9921e77e7" />
+
+
+* Retirar Candidatos
+
+   esta rota retira candidatos do sistema e os deixa indísponiveis para consultar ou manipular. por meio da rota: ```Candidatos/retirar/{id}```
+
+<img width="1435" height="464" alt="image" src="https://github.com/user-attachments/assets/036f4d82-e322-4118-95df-aa6530161626" />
+
+
+### Concurso
+
+* Buscar por Código
+
+   rota usada na view da solução para buscar candidatos compátiveis com o concurso portador do código digitado. por meio da rota: ```/Concursos/BuscarPorCodigo```
+
+Exemplo:
+
+```cshtml
+<div class="container">
+    <h2>Filtrar Candidatos por Codigo</h2>
+    
+    <form method="get" class="mb-4" action="/Concursos/BuscarPorCodigo">
+    <div class="input-group">
+    <input type="number" name="codigo" class="form-control" placeholder="Digite o Código (ex: 123123)" />
+    <button type="submit" class="btn btn-primary">Buscar</button>
+    </div>
+    </form>
+
+        <table class="table table-striped">
+            <thead>
+            <tr>
+            <th>Nome</th>
+            <th>Data de Nascimento</th>
+            <th>CPF</th>
+            <th>Profissões</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Gustavo Teste</td>
+                <td>01/01/2000</td>
+                <td>123</td>
+                <td>marceneiro</td>
+                </tr>
+        </tbody>
+            </table>
+        
 </div>
+```
 
-###
+* Listar Concursos
+
+  Retorna um JSON de concurso disponíveis no sistema, para consulta ou manipulação. por meio da rota: ```/Concursos/listar```
+
+Exemplo:
+
+```json
+[
+  {
+    "id": 1,
+    "orgao": "IFES - SERRA",
+    "edital": "01/2026",
+    "codigo": "61828450843",
+    "vagas": [
+      "marceneiro",
+      "programador"
+    ]
+  },
+  {
+    "id": 2,
+    "orgao": "ifesvitoria",
+    "edital": "05/2025",
+    "codigo": "123123",
+    "vagas": [
+      "pedreiro"
+    ]
+  },
+  {
+    "id": 3,
+    "orgao": "sedu",
+    "edital": "16/2023",
+    "codigo": "123123123123",
+    "vagas": [
+      "limpador de vidro",
+      "programador"
+    ]
+  }
+]
+```
+
+* Cadastrar Concursos
+
+  esta rota adiciona concursos ao sistema para executar as consultas e manipulações do mesmo. por meio da rota: ```/Concursos/Criar```
+
+<img width="1431" height="761" alt="image" src="https://github.com/user-attachments/assets/ced71b48-142c-4a78-af4e-1fd6e4cb5ec0" />
+
+
+* Retirar concursos
+
+   esta rota retira concursos do sistema e os deixa indísponiveis para consultar ou manipular. por meio da rota: ```Concursos/retirar/{id}```
+
+<img width="1433" height="463" alt="image" src="https://github.com/user-attachments/assets/7b7f9da2-2cb8-424d-9b32-bf0769e6d5f3" />
+
+
+
+##  Como Executar o Projeto
+Pré-requisitos: 
+
+1. Certifique-se de ter o SDK instalado:
+```C#
+dotnet --version 
+```
+3. Clonar o repositório:
+```C#
+git clone https://github.com/seu-usuario/venhaparaoleds.git
+```
+
+3. Restaurar dependências
+```C#
+dotnet restore
+```
+
+4. Atualize o Banco de Dados (Migrations):
+```C#
+dotnet ef database update
+```
+6. Rodar a aplicação:
+```C#
+dotnet run
+```
+Acesse via navegador em: http://localhost:5083
+
+##  Documentação da API (Swagger)
+
+O projeto utiliza Sumários XML em todos os métodos públicos, fornecendo ajuda contextual (IntelliSense) durante o desenvolvimento e alimentando automaticamente a documentação do Swagger.
+
+Acesse via navegador em: http://localhost:5083/swagger
+
+> Desenvolvido como desafio técnico para o IFES - Campus Serra.
