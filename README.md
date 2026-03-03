@@ -265,8 +265,6 @@ Acesse via navegador em: http://localhost:5083
 
 ##  Documentação da API (Swagger)
 
-O projeto utiliza Sumários XML em todos os métodos públicos, fornecendo ajuda contextual (IntelliSense) durante o desenvolvimento e alimentando automaticamente a documentação do Swagger.
-
 Acesse via navegador em: http://localhost:5083/swagger
 
 > Desenvolvido como desafio técnico para o IFES - Campus Serra.
